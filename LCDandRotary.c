@@ -52,12 +52,19 @@
 #define top         0x80 // top line of LCD starts here and goes to 8F
 #define bottom      0xC0 // bottom line of LCD starts here and goes to CF
 
-#define ENCODER_A   BIT0 //rotary encoder pin A SW
+#define ENCODER_A   BIT0 //rotary encoder pin A clk
 #define ENCODER_B   BIT5 //rotary encoder pin B DT
 #define LED1        BIT0
 #define LED2        BIT6
 
-int dig = 53;
+volatile unsigned int dig = 53; // Ascii representation (48-57) of numerical char (0-9)
+int tens = 48;
+int hundreds = 48;
+int thousands = 48;
+int tensthousands = 48;
+int hundredsthousands = 48;
+int millions = 48;
+int tensmillions = 50;
 
 void lcd_reset();
 void lcd_pos(char pos);
@@ -67,53 +74,36 @@ void lcd_display_top(char *line);
 void lcd_display_tempC_bottom();
 void lcd_display_tempF_bottom();
 void encoderInit();
-void stepCCW(){
-    P1OUT ^= LED1; //toogle led1
-    dig = dig-1;
-        if (dig < 48){
-                dig = 57;
-            }
 
-}
-void stepCW(){
-    P1OUT ^= LED2; //toogle led2
-    dig = dig+1;
-        if (dig > 57){
-            dig = 48;
-        }
-}
-
-
-void main(void) {
+void main(void)
+{
 
     WDTCTL = WDTPW | WDTHOLD;               // Stop watchdog timer
-
-
-
-    // P1 In and Outs are TBD
-    // The LCD is declared as it is used
 
     P1DIR |= LED1 + LED2;
     P1OUT &= ~(LED1 + LED2);
 
     encoderInit();
-
     lcd_setup();
-    //adc_setup();
 
-
-    while(1) {
-
-
-               //if (mode == d){
-                   lcd_display_top("Frequency:       ");
-                   lcd_pos(0xCf);
-                   lcd_data(dig);
-              // }
+    while(1)
+    {
+    	lcd_display_top("Frequency:       ");
+    	lcd_pos(0xC6);
+    	lcd_data(tensmillions);
+    	lcd_data(millions);
+    	lcd_data(hundredsthousands);
+    	lcd_data(tensthousands);
+    	lcd_data(thousands);
+    	lcd_data(hundreds);
+    	lcd_data(tens);
+        lcd_data(dig);
+        lcd_data(72); //char H
+        lcd_data(122); // char z
     }
 }
 
-
+//LCD
 void lcd_reset()
 {
     lcd_port_dir = 0xff;
@@ -172,7 +162,9 @@ void lcd_display_top(char *line) //displays strings
     while (*line)
         lcd_data(*line++);
 }
+//LCD
 
+// encoder
 void encoderInit(){
 
     P2OUT |= (ENCODER_A+ENCODER_B); //enable pull-up resistor
@@ -186,14 +178,25 @@ void encoderInit(){
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2(void)
 {
-    if(P2IN & ENCODER_B){ //one step CCW
-        stepCCW(); //call function for step CCW
+    if(P2IN & ENCODER_B) //one step CCW (& is bitwise AND)
+    {
+    	P1OUT ^= LED1; //toggle led1
+    	dig = dig-1;
+    	if (dig < 48)
+    	{
+    		dig = 57;
+    	}
     }
-    else
-    { //one step CW
-        stepCW(); //call function for step CW
+    else  //one step CW
+    {
+    	P1OUT ^= LED2; //toggle led2
+    	dig = dig+1;
+    	if (dig > 57)
+    	{
+    		dig = 48;
+    	}
     }
-
     P2IFG &= ~ENCODER_A;    //clear interupt flag
 }
+// encoder
 
