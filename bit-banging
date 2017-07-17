@@ -1,0 +1,88 @@
+#include <msp430.h> 
+
+#define SDATA BIT2
+#define CTRL BIT3
+#define SCLK BIT4
+#define FSYNC BIT5
+
+void serial(unsigned int reg);
+
+int main(void)
+{
+	WDTCTL = WDTPW | WDTHOLD;
+	// Set outputs at P1.0 and P1.2-P1.6
+	P1DIR |= SDATA+SCLK+FSYNC+BIT0+BIT6+CTRL;
+	//P1SEL |= SCLK; // Enable Clock output at P1.4//////////////////////////////
+
+	P1OUT |= SCLK + FSYNC; ////////////////////////////////
+	P1OUT |= BIT0; //P1.0(LED) high
+	P1OUT &= (~CTRL); //set to 0
+
+	//After registers set, a 0 to 1 transition
+	//on CTRL pin starts scan at Fstart reg
+
+
+	// Fstop = (Fstart + N_INC * deltaf)
+	// Continuously outputs last frequency at Fstop
+	// deltaf is set to 0 so Fstop == Fstart
+	// N_INC and t_int minimum value is 2
+	// first four bits are the address
+	// ctrl[15:12] Address
+	// ctrl[11]; [10] DAC enable; [9] Sine out
+	// ctrl[8] MSBOUT pin disabled; [7:6] Reserved to 1
+	// ctrl[5] auto increment; [4] Reserved to 1
+	// ctrl[3] SYNCSEL disabled; [2] SYNCOUT pin disabled
+	// ctrl [1:0] Reserved to 1
+	unsigned int ctrl       = 0x000006D3;
+	unsigned int N_INC      = 0x0001002;
+	unsigned int deltaf_lsb = 0x002000;
+	unsigned int deltaf_msb = 0b0011000000000000;
+	unsigned int t_INT      = 0b0100000000000010;
+	unsigned int Fstart_lsb = 0b1110011001100110;
+	unsigned int Fstart_msb = 0b1111011001100110;
+
+	//000001011010___000111001011 1.1 MHz
+	//001100110011___001100110011 10MHz
+	//010011001100___110011001101 15MHz
+	//011000010100___011110101110 19MHz
+	//011001100110___011001100110 20MHz
+	//011010111000___010100011111 21MHz
+
+	// control reg must be set first
+
+	serial(ctrl);
+	serial(N_INC);
+	serial(deltaf_lsb);
+	serial(deltaf_msb);
+	serial(t_INT);
+	serial(Fstart_lsb);
+	serial(Fstart_msb);
+
+	P1OUT |= CTRL; // 0 to 1
+
+	return 0;
+}
+
+void serial(unsigned int reg){
+    int i;
+    // Data is only transferred into DDS
+    // when FYSNC is low
+    P1OUT &= ~FSYNC; //Set low
+    for (i = 0; i < 16 ; i++) // Go through 16-bits
+    {
+        // Check if MSB is 1 or 0
+        if (reg & 0x8000)
+            P1OUT |= SDATA; //send 1
+        else
+            P1OUT &= ~SDATA; //send 0
+
+        P1OUT |= SCLK;  //Pulse SCLK to high
+        P1OUT &= ~SCLK; //Pulse SCLK to low; SDATA is shifted into DDS input shift register at falling edge of SCLK
+
+        //shift register to left for new MSB
+        reg = reg << 1;
+    }
+
+   // for(i = 0; i < 16; i++){
+    P1OUT |= FSYNC;// End of transfer; set to high
+}
