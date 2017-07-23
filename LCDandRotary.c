@@ -18,14 +18,12 @@
 // I/O Assignments:
 //
 //      16x2 Screen + Extra:
-//          P1.0: (output) LCD D4
-//          P1.1: (output) LCD D5
-//          P1.2: (output) LCD D6
-//          P1.3: (output) LCD D7
-//          P1.4: (output) LCD E
-//          P1.5: (output) LCD RS
-//          P1.6: (TBD)
-//          P1.7: (TBD)
+//          P2.0: (output) LCD D4
+//          P2.1: (output) LCD D5
+//          P2.2: (output) LCD D6
+//          P2.3: (output) LCD D7
+//          P2.4: (output) LCD E
+//          P2.5: (output) LCD RS
 //          LCD VDD - 5V (TP1 on MSP430 LaunchPad)
 //          LCD VSS - GND
 //          LCD RW  - GND
@@ -34,8 +32,15 @@
 //          LCD A   - 5V through pot (adjusts brightness)
 //
 //      Rotary Encoder with SW:
+//			P1.7: (input) signal A CW
+//			P1.5: (input) signal B CCW
+//			P1.3: (input) SW
 //
 //      AD5932 DDS Chip:
+//          P1.x: (output) CTRL
+//          P1.x: (output) SCLK
+//          P1.x: (output) SDATA
+//          P1.x: (output) FSYNC
 //
 // Comments:
 //
@@ -47,7 +52,7 @@
 #define top         0x80 // top line of LCD starts here and goes to 8F
 #define bottom      0xC0 // bottom line of LCD starts here and goes to CF
 
-#define ENCODER_A   BIT0 //rotary encoder pin A clk
+#define ENCODER_A   BIT7 //rotary encoder pin A clk
 #define ENCODER_B   BIT5 //rotary encoder pin B DT
 #define SW          BIT3 // rotary switch button
 
@@ -55,6 +60,8 @@
 
 volatile unsigned int PVarray[PVLength] = {50,48,48,48,48,48,48,48}; // array holding Ascii value in decimal for each place value in Frequency between 19-21MHz
 volatile unsigned int PVindex = 0; //value that will index through place value array
+unsigned long Frequency = 21000000;
+float frequencyWord = 20000000;
 
 void lcd_reset();
 void lcd_pos(char pos);
@@ -67,22 +74,25 @@ void switchInit();
 void main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;               // Stop watchdog timer
-
     encoderInit();
     lcd_setup();
     switchInit();
 
+    frequencyWord = (Frequency*.33554432); //(16777216/50000000) = .33554432
+
     while(1)
     {
-    	if(~P2IN & SW)
+    	if(~P1IN & SW)
     	{
     		PVindex = PVindex+1;
+    		frequencyWord = (Frequency*.33554432);
     		if(PVindex > 7)
     		{
     			PVindex = 0;
     		}
-    		while(~P2IN & SW){}
+    		while(~P1IN & SW){}
     	}
+    	Frequency = ((PVarray[0]-48)*10000000) + ((PVarray[1]-48)*1000000) + ((PVarray[2]-48)*100000) + ((PVarray[3]-48)*10000) + ((PVarray[4]-48)*1000) + ((PVarray[5]-48)*100) + ((PVarray[6]-48)*10) + ((PVarray[7]-48));
     	lcd_display_top("Frequency:       ");
     	lcd_pos(0xC6);
     	lcd_data(PVarray[0]);
@@ -101,30 +111,30 @@ void main(void)
 //LCD
 void lcd_reset()
 {
-    P1DIR = 0xff;
-    P1OUT = 0xff;
+    P2DIR = 0xff;
+    P2OUT = 0xff;
     __delay_cycles(20000);
-    P1OUT = 0x03+LCD_EN;
-    P1OUT = 0x03;
+    P2OUT = 0x03+LCD_EN;
+    P2OUT = 0x03;
     __delay_cycles(10000);
-    P1OUT = 0x03+LCD_EN;
-    P1OUT = 0x03;
+    P2OUT = 0x03+LCD_EN;
+    P2OUT = 0x03;
     __delay_cycles(1000);
-    P1OUT = 0x03+LCD_EN;
-    P1OUT = 0x03;
+    P2OUT = 0x03+LCD_EN;
+    P2OUT = 0x03;
     __delay_cycles(1000);
-    P1OUT = 0x02+LCD_EN;
-    P1OUT = 0x02;
+    P2OUT = 0x02+LCD_EN;
+    P2OUT = 0x02;
     __delay_cycles(1000);
 }
 
 void lcd_pos (char pos) //16*2
 {
-    P1OUT = ((pos >> 4) & 0x0F)|LCD_EN;
-    P1OUT = ((pos >> 4) & 0x0F);
+    P2OUT = ((pos >> 4) & 0x0F)|LCD_EN;
+    P2OUT = ((pos >> 4) & 0x0F);
 
-    P1OUT = (pos & 0x0F)|LCD_EN;
-    P1OUT = (pos & 0x0F);
+    P2OUT = (pos & 0x0F)|LCD_EN;
+    P2OUT = (pos & 0x0F);
 
     __delay_cycles(4000);
 }
@@ -142,11 +152,11 @@ void lcd_setup()
 
 void lcd_data (unsigned char dat)//display number(hz)
 {
-	P1OUT = (((dat >> 4) & 0x0F)|LCD_EN|LCD_RS);
-	P1OUT = (((dat >> 4) & 0x0F)|LCD_RS);
+	P2OUT = (((dat >> 4) & 0x0F)|LCD_EN|LCD_RS);
+	P2OUT = (((dat >> 4) & 0x0F)|LCD_RS);
 
-	P1OUT = ((dat & 0x0F)|LCD_EN|LCD_RS);
-	P1OUT = ((dat & 0x0F)|LCD_RS);
+	P2OUT = ((dat & 0x0F)|LCD_EN|LCD_RS);
+	P2OUT = ((dat & 0x0F)|LCD_RS);
 
     __delay_cycles(400);
 }
@@ -162,32 +172,52 @@ void lcd_display_top(char *line) //displays strings
 //encoder
 void encoderInit()
 {
-
-    P2OUT |= (ENCODER_A+ENCODER_B); //enable pull-up resistor
-    P2REN |= ENCODER_A+ENCODER_B;   //enable pull-up resistor
-    P2IFG &= ~(ENCODER_A);            //clear interupt flag
-    P2IE |= ENCODER_A;
+    P1OUT |= (ENCODER_A+ENCODER_B); //enable pull-up resistor
+    P1REN |= (ENCODER_A+ENCODER_B);   //enable pull-up resistor
+    P1IFG &= ~(ENCODER_A);            //clear interupt flag
+    P1IE |= ENCODER_A;
     __enable_interrupt();
 }
 
 void switchInit()
 {
-	P2OUT |= SW;
-	P2REN |= SW;
+	P1OUT |= SW;
+	P1REN |= SW;
 }
 
 
-#pragma vector=PORT2_VECTOR
-__interrupt void Port_2(void)
+#pragma vector=PORT1_VECTOR
+__interrupt void Port_1(void)
 {
-	if(P2IN & ENCODER_B) //one step CCW (& is bitwise AND)
+	if(P1IN & ENCODER_B) //one step CCW (& is bitwise AND)
     {
-    	PVarray[PVindex] = PVarray[PVindex]-1;
+		PVarray[PVindex] = PVarray[PVindex]-1;
     	if (PVarray[PVindex] < 48)
     	{
     		PVarray[PVindex] = 57;
     	}
-    	P2IFG &= ~ENCODER_A;    //clear interupt flag
+		if(PVarray[0] < 49)
+		{
+			PVarray[0] = 49;
+		}
+		if((PVarray[0] == 49) && (PVarray[1] != 57))
+		{
+			PVarray[1] = 57;
+		}
+		if((PVarray[0] == 50) && !((PVarray[1] == 48) || (PVarray[1] == 49)))
+		{
+			PVarray[1] = 48;
+		}
+		if(((PVarray[0] == 50)&&(PVarray[1] == 49))&&((PVarray[2] != 48)||(PVarray[3] != 48)||(PVarray[4] != 48)||(PVarray[5] != 48)||(PVarray[6] != 48)||(PVarray[7] != 48)))
+		{
+			PVarray[2] = 48;
+			PVarray[3] = 48;
+		    PVarray[4] = 48;
+		    PVarray[5] = 48;
+		    PVarray[6] = 48;
+		    PVarray[7] = 48;
+		}
+    	P1IFG &= ~ENCODER_A;    //clear interupt flag
     }
     else  //one step CW
     {
@@ -196,7 +226,28 @@ __interrupt void Port_2(void)
     	{
     		PVarray[PVindex] = 48;
     	}
-    	P2IFG &= ~ENCODER_A;    //clear interupt flag
+    	if(PVarray[0] > 50)
+    	{
+    		PVarray[0] = 50;
+    	}
+    	if((PVarray[0] == 50) && !((PVarray[1] == 48) || (PVarray[1] == 49)))
+    	{
+    		PVarray[1] = 49;
+    	}
+    	if((PVarray[0] == 49) && (PVarray[1] != 57))
+    	{
+    		PVarray[1] = 57;
+    	}
+    	if(((PVarray[0] == 50)&&(PVarray[1] == 49))&&((PVarray[2] != 48)||(PVarray[3] != 48)||(PVarray[4] != 48)||(PVarray[5] != 48)||(PVarray[6] != 48)||(PVarray[7] != 48)))
+    	{
+    		PVarray[2] = 48;
+    	    PVarray[3] = 48;
+    	    PVarray[4] = 48;
+    	    PVarray[5] = 48;
+    	    PVarray[6] = 48;
+    	    PVarray[7] = 48;
+    	}
+    	P1IFG &= ~ENCODER_A;    //clear interupt flag
     }
 }
 // encoder
