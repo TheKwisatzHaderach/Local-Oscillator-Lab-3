@@ -77,9 +77,9 @@
 
 volatile unsigned int IFlag = 0; //Flag goes to 1 when there is a rotary encoder state change
 static int loopC = 16; //amount of bits for corresponding passed in value
-static int loopW = 23;
+//static int loopW = 23;
 static int bcountC = 0x8000; // used to bitwise and with the 16th bit as 1
-static long bcountW = 0x400000; //  used to bitwise and with the 23th bit as 1
+//static long bcountW = 0x400000; //  used to bitwise and with the 23th bit as 1
 
 volatile unsigned int PVarray[PVLength] = {50,48,48,48,48,48,48,48}; // array holding Ascii value in decimal for each place value in Frequency between 19-21MHz
 volatile unsigned int PVindex = 0; //value that will index through place value array
@@ -89,10 +89,10 @@ float frequencyWord = 20000000; // Word that is passed into function to achieve 
 unsigned int ctrl       = 0x000006F3; //0000011011010011b
 unsigned int N_INC      = 0x0001002; //0001000000000010b
 unsigned int deltaf_lsb = 0x002000; //0010000000000000b
-unsigned int deltaf_msb = 0b0011000000000000;
-unsigned int t_INT      = 0b0100000000000010;
-unsigned int Fstart_lsb = 0b1110011001100110;
-unsigned int Fstart_msb = 0b1111011001100110;
+unsigned int deltaf_msb = 0x03000;
+unsigned int t_INT      = 0x04002;
+unsigned int Fstart_lsb = 0x0E666;
+unsigned int Fstart_msb = 0x0F666;
 
 void lcd_reset();
 void lcd_pos(char pos);
@@ -102,7 +102,7 @@ void lcd_display_top(char *line);
 void encoderInit();
 void switchInit();
 void DDSinit();
-void serial(unsigned int reg, int loopcount, long bcount);
+void serial(unsigned int reg, int loopcount, int bcount);
 
 void main(void)
 {
@@ -137,7 +137,7 @@ void main(void)
     	if(~P1IN & SW)
     	{
     		PVindex = PVindex+1;
-    		frequencyWord = (Frequency*.33554432);
+
     		if(PVindex > 7)
     		{
     			PVindex = 0;
@@ -145,6 +145,8 @@ void main(void)
     		IFlag = 1;
     		// The blocking while loop prevents bounce
     		while(~P1IN & SW){}
+
+
     	}
 
 
@@ -164,7 +166,8 @@ void main(void)
 
         if(IFlag == 1)
         {
-
+        	frequencyWord = (Frequency*.33554432);
+        	//int lsb = frequency[23:1];
             serial(ctrl, loopC, bcountC);
             serial(Fstart_lsb, loopC, bcountC);
             serial(Fstart_msb, loopC, bcountC);
@@ -261,7 +264,7 @@ void DDSinit()
 	P1OUT &= (~CTRL); //set to 0
 }
 
-void serial(unsigned int reg, int loopcount, long bcount){
+void serial(unsigned int reg, int loopcount, int bcount){
     int i;
     P1OUT &= ~FSYNC; //Set low
     for (i = 0; i < loopcount ; i++) // Go through 16-bits
@@ -272,13 +275,13 @@ void serial(unsigned int reg, int loopcount, long bcount){
         else
             P1OUT &= ~SDATA; //send 0
 
+
         P1OUT |= SCLK;  //Pulse SCLK to high
         P1OUT &= ~SCLK; //Pulse SCLK to low; SDATA is shifted into DDS input shift register at falling edge of SCLK
 
         //shift register to left for new MSB
         reg = reg << 1;
     }
-   //for(i = 0; i < 10; i++){}
     P1OUT |= FSYNC;// End of transfer; set to high
 }
 
@@ -350,3 +353,4 @@ __interrupt void Port_1(void)
     }
 }
 // encoder
+
