@@ -124,6 +124,12 @@ void main(void)
     // drives control pin high which tells DDS to begin output
     P1OUT |= CTRL;
     P1OUT &= (~CTRL); //set to 0
+	
+    serial(ctrl, loopC, bcountC);
+    serial(Fstart_lsb, loopC, bcountC);
+    serial(Fstart_msb, loopC, bcountC);
+    P1OUT |= CTRL;
+    P1OUT &= (~CTRL); //set to 0
 
     // Never ending while loop so that system always is on unless powered down
     while(1)
