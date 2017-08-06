@@ -52,7 +52,7 @@
 //          P1.0: (output) CTRL
 //          P1.4: (output) SCLK
 //          P1.2: (output) SDATA
-//          P1.6: (output) FSYNC
+//          P1.6: (output) FSYNC //1.5
 //
 // Comments:
 //
@@ -86,7 +86,7 @@ volatile unsigned int PVindex = 0; //value that will index through place value a
 unsigned long Frequency = 20000000; // frequency value that corresponds to value on lcd screen
 float frequencyWord = 20000000; // Word that is passed into function to achieve desired frequency
 
-unsigned int ctrl       = 0x000006D3; //0000011011010011b
+unsigned int ctrl       = 0x000006F3; //0000011011010011b
 unsigned int N_INC      = 0x0001002; //0001000000000010b
 unsigned int deltaf_lsb = 0x002000; //0010000000000000b
 unsigned int deltaf_msb = 0b0011000000000000;
@@ -114,23 +114,24 @@ void main(void)
     switchInit();
     DDSinit();
 
-    // Sends an intial reading into DDS
+    // Sends an intial reading into DDS 20MHz is 66666666
     serial(ctrl, loopC, bcountC);
-    serial(ctrl, loopW, bcountW);
-
+    serial(Fstart_lsb, loopC, bcountC);
+    serial(Fstart_msb, loopC, bcountC);
+    serial(deltaf_lsb, loopC, bcountC);
+    serial(deltaf_lsb, loopC, bcountC);
+    serial(N_INC, loopC, bcountC);
     // drives control pin high which tells DDS to begin output
     P1OUT |= CTRL;
+    P1OUT &= (~CTRL); //set to 0
 
     // Never ending while loop so that system always is on unless powered down
     while(1)
     {
+
+    	// updates frequency value
+    	Frequency = ((PVarray[0]-48)*10000000) + ((PVarray[1]-48)*1000000) + ((PVarray[2]-48)*100000) + ((PVarray[3]-48)*10000) + ((PVarray[4]-48)*1000) + ((PVarray[5]-48)*100) + ((PVarray[6]-48)*10) + ((PVarray[7]-48));
     	// Updates DDS with new frequency
-    	if(IFlag == 1)
-    	{
-    		serial(ctrl, loopC, bcountC);
-    		serial(ctrl, loopW, bcountW);
-    		IFlag = 0;
-    	}
 
     	//Constantly Polling for Switch to be pressed. This method was chosen due to conflicts with LCD and port interupts
     	if(~P1IN & SW)
@@ -146,8 +147,6 @@ void main(void)
     		while(~P1IN & SW){}
     	}
 
-    	// updates frequency value
-    	Frequency = ((PVarray[0]-48)*10000000) + ((PVarray[1]-48)*1000000) + ((PVarray[2]-48)*100000) + ((PVarray[3]-48)*10000) + ((PVarray[4]-48)*1000) + ((PVarray[5]-48)*100) + ((PVarray[6]-48)*10) + ((PVarray[7]-48));
 
     	// Updates LCD display
     	lcd_display_top("Frequency:       ");
@@ -162,6 +161,17 @@ void main(void)
         lcd_data(PVarray[7]);
         lcd_data(72); //char H
         lcd_data(122); // char z
+
+        if(IFlag == 1)
+        {
+
+            serial(ctrl, loopC, bcountC);
+            serial(Fstart_lsb, loopC, bcountC);
+            serial(Fstart_msb, loopC, bcountC);
+            P1OUT |= CTRL;
+            P1OUT &= (~CTRL); //set to 0
+            IFlag = 0;
+        }
     }
 }
 
